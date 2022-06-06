@@ -25,7 +25,7 @@ This widget uses:
 | file/folder   | description                                                                      |
 | ------------- | -------------------------------------------------------------------------------- |
 | manifest.json | The widget's [manifest.json](https://www.figma.com/widget-docs/widget-manifest/) |
-| widget-src/   | Contains the widget code                                                         |
+| src/   | Contains the widget code                                                         |
 
 ### `npm run dev`
 
