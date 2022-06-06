@@ -4,6 +4,7 @@
     "jsxFactory": "figma.widget.h",
     "jsxFragmentFactory": "figma.widget.Fragment",
     "target": "es6",
+    "moduleResolution": "node",
     "lib": [
       "es6"
     ],
