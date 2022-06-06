@@ -1,0 +1,10 @@
+{
+  "name": "Selector",
+  "id": "widget-id-oiCnifhXnG",
+  "api": "1.0.0",
+  "editorType": ["figjam"],
+  "permissions": [],
+  "containsWidget": true,
+  "main": "dist/code.js",
+  "widgetApi": "1.0.0"
+}
