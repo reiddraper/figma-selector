@@ -1,10 +1,11 @@
 import { parse_and_select } from "figma-selector";
 
 const { widget } = figma;
-const { Frame, Input, useSyncedState } = widget;
+const { Frame, Input, Text, useSyncedState } = widget;
 
 function Selector() {
   const [text, setText] = useSyncedState("text", "");
+  const [count, setCount] = useSyncedState("count", 0);
   return (
     <Frame
       name="Selector"
@@ -37,7 +38,7 @@ function Selector() {
         ],
       }}
       cornerRadius={16}
-      width={600}
+      width={800}
       height={200}
     >
       <Input
@@ -45,7 +46,7 @@ function Selector() {
         fill="#000"
         fontFamily="Roboto Mono"
         fontSize={24}
-        width={400}
+        width={600}
         horizontalAlignText="center"
         x={{
           type: "center",
@@ -58,7 +59,8 @@ function Selector() {
         onTextEditEnd={(event) => {
           const text = event.characters;
           setText(text);
-          parse_and_select(text);
+          const numNodes = parse_and_select(text);
+          setCount(numNodes);
         }}
         placeholder="css selector"
         value={text}
@@ -68,6 +70,33 @@ function Selector() {
           padding: 8,
         }}
       ></Input>
+      <Frame
+        name="Count"
+        x={716}
+        y={18}
+        fill="#FFF"
+        cornerRadius={100}
+        width={60}
+        height={60}
+      >
+        <Text
+          name="Select count"
+          x={{
+            type: "center",
+            offset: -0.5,
+          }}
+          y={{
+            type: "center",
+            offset: 0,
+          }}
+          fill="#888"
+          horizontalAlignText="center"
+          fontFamily="Roboto Mono"
+          fontSize={24}
+        >
+          {count}
+        </Text>
+      </Frame>
     </Frame>
   );
 }
