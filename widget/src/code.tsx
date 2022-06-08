@@ -1,4 +1,4 @@
-import { parse_and_select } from "figma-selector";
+import { parseAndSelect } from "figma-selector";
 
 const { widget } = figma;
 const { Frame, Input, Text, useSyncedState } = widget;
@@ -59,7 +59,7 @@ function Selector() {
         onTextEditEnd={(event) => {
           const text = event.characters;
           setText(text);
-          const numNodes = parse_and_select(text);
+          const numNodes = parseAndSelect(text);
           setCount(numNodes);
         }}
         placeholder="css selector"

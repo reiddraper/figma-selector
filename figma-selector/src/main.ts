@@ -44,10 +44,10 @@ enum Search {
   DESCENDANTS = "DESCENDANTS",
 }
 
-export function parse_and_select(selector: string): number {
-  console.log(JSON.stringify(parse_selector(selector)));
+export function parseAndSelect(selector: string): number {
+  console.log(JSON.stringify(parseSelector(selector)));
   const rootNode = figma.currentPage;
-  const nodes = find_selection(rootNode, parse_selector(selector), Search.ALL);
+  const nodes = findSelection(rootNode, parseSelector(selector), Search.ALL);
   currentPage.selection = nodes;
   return nodes.length;
 }
@@ -63,7 +63,7 @@ function parseNodeName(input: string): SceneNodeType[] {
   }
 }
 
-function parse_selector(selector: string): Selector {
+function parseSelector(selector: string): Selector {
   const parser = new CssSelectorParser();
   parser.registerNestingOperators(">");
   parser.registerSelectorPseudos("stuck");
@@ -71,30 +71,30 @@ function parse_selector(selector: string): Selector {
   return parser.parse(selector);
 }
 
-function find_selection(
+function findSelection(
   node: BaseNode,
   selector: Selector,
   search: Search
 ): SceneNode[] {
   if (selector.type === "selectors") {
     return selector.selectors.reduce((acc, ruleset) => {
-      const nodes = find_ruleset(node, ruleset, search);
+      const nodes = findRuleset(node, ruleset, search);
       return acc.concat(nodes);
     }, [] as SceneNode[]);
   } else {
-    return find_ruleset(node, selector, search);
+    return findRuleset(node, selector, search);
   }
 }
 
-function find_ruleset(
+function findRuleset(
   node: BaseNode,
   ruleset: RuleSet,
   search: Search
 ): SceneNode[] {
-  return find_rule(node, ruleset.rule, search);
+  return findRule(node, ruleset.rule, search);
 }
 
-function find_rule(node: BaseNode, rule: Rule, search: Search): SceneNode[] {
+function findRule(node: BaseNode, rule: Rule, search: Search): SceneNode[] {
   /*
   console.log(
     `find_rule: node: ${node.type} rule: ${JSON.stringify(
@@ -138,9 +138,10 @@ function find_rule(node: BaseNode, rule: Rule, search: Search): SceneNode[] {
       }
     }
     const attr_filtered_nodes = all_typed_nodes.filter((node) =>
-      matches_rule(node, rule, search)
+      matchesAttrs(node, rule)
     );
     candidates = candidates.concat(attr_filtered_nodes);
+    candidates = matchAndFilterPseudos(candidates, rule);
   }
   if ("rule" in rule && rule.rule !== undefined) {
     const subRule = rule.rule;
@@ -154,29 +155,45 @@ function find_rule(node: BaseNode, rule: Rule, search: Search): SceneNode[] {
       searchType = Search.CHILDREN;
     }
     for (const subNode of oldCandidates) {
-      const subCandidates = find_rule(subNode, subRule, searchType);
+      const subCandidates = findRule(subNode, subRule, searchType);
       candidates = candidates.concat(subCandidates);
     }
   }
   return candidates;
 }
 
-function matches_rule(node: SceneNode, rule: Rule, search: Search): boolean {
+const pseudoClassMap = new Map<
+  string,
+  (node: SceneNode[], pseudo: RulePseudo) => SceneNode[]
+>();
+
+pseudoClassMap.set("stuck", stuckPseudoClass);
+pseudoClassMap.set("nth-child", nthChildPseudoClass);
+
+function matchAndFilterPseudos(nodes: SceneNode[], rule: Rule): SceneNode[] {
+  let results = nodes;
+  if ("pseudos" in rule) {
+    for (const pseudo of rule.pseudos) {
+      const func = pseudoClassMap.get(pseudo.name);
+      if (func) {
+        results = func(results, pseudo);
+      } else {
+        console.log(`Unknown pseudo class: ${pseudo.name}`);
+        return [];
+      }
+    }
+  }
+  return results;
+}
+
+function matchesAttrs(node: SceneNode, rule: Rule): boolean {
   // NOTE:
   // We have to do this because the Rule type
   // mistakenly has the attrs property as non-nullable,
   // when in reality it is nullable
   if ("attrs" in rule) {
     for (const attr of rule.attrs) {
-      if (!matches_attr(node, attr)) {
-        return false;
-      }
-    }
-  }
-
-  if ("pseudos" in rule) {
-    for (const pseudo of rule.pseudos) {
-      if (!matches_pseudo(node, pseudo, Search.ALL)) {
+      if (!matchesAttr(node, attr)) {
         return false;
       }
     }
@@ -184,7 +201,7 @@ function matches_rule(node: SceneNode, rule: Rule, search: Search): boolean {
   return true;
 }
 
-function matches_attr(node: SceneNode, attr: RuleAttr): boolean {
+function matchesAttr(node: SceneNode, attr: RuleAttr): boolean {
   if (attr.name === "name" && "value" in attr) {
     return attr.value === node.name;
   }
@@ -200,23 +217,65 @@ function matches_attr(node: SceneNode, attr: RuleAttr): boolean {
   return true;
 }
 
-function matches_pseudo(
-  node: SceneNode,
-  pseudo: RulePseudo,
-  search: Search
-): boolean {
-  if (
-    pseudo.name === "stuck" &&
-    "valueType" in pseudo &&
-    pseudo.valueType === "selector" &&
-    "stuckNodes" in node
-  ) {
-    let matching_nodes: SceneNode[] = [];
-    for (const stuckNode of node.stuckNodes) {
-      const result = find_selection(stuckNode, pseudo.value, search);
-      matching_nodes = matching_nodes.concat(result);
+function stuckPseudoClass(nodes: SceneNode[], pseudo: RulePseudo): SceneNode[] {
+  const results: SceneNode[] = [];
+  for (const node of nodes) {
+    if (
+      // do we need to keep this,
+      // since the caller has already checked
+      // this is the same string?
+      pseudo.name === "stuck" &&
+      "valueType" in pseudo &&
+      pseudo.valueType === "selector" &&
+      "stuckNodes" in node
+    ) {
+      let matching_nodes: SceneNode[] = [];
+      for (const stuckNode of node.stuckNodes) {
+        const result = findSelection(stuckNode, pseudo.value, Search.ALL);
+        matching_nodes = matching_nodes.concat(result);
+      }
+      if (matching_nodes.length > 0) {
+        results.push(node);
+      }
     }
-    return matching_nodes.length > 0;
   }
-  return false;
+  return results;
+}
+
+function pseudoStringValueType(pseudo: RulePseudo): string | null {
+  if (pseudo.valueType === "numeric" || pseudo.valueType === "string") {
+    return pseudo.valueType;
+  } else {
+    return null;
+  }
+}
+
+// TODO: handle <An+B> functional notation
+// https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-child
+function nthChildPseudoClass(
+  nodes: SceneNode[],
+  pseudo: RulePseudo
+): SceneNode[] {
+  const results: SceneNode[] = [];
+  const pseudoValue = pseudoStringValueType(pseudo);
+  if (pseudoValue !== null) {
+    if (pseudo.value === "even") {
+      return nodes.filter((node, index) => index % 2 === 0);
+    }
+    if (pseudo.value === "odd") {
+      return nodes.filter((node, index) => index % 2 !== 0);
+    }
+    // Not part of the CSS spec, just a little fun
+    // easter egg
+    if (pseudo.value === "random") {
+      const random_index = Math.floor(Math.random() * nodes.length);
+      return [nodes[random_index]];
+    }
+
+    const asNumber = Number(pseudo.value);
+    if (!isNaN(asNumber) && asNumber >= 0 && asNumber <= nodes.length) {
+      return [nodes[asNumber - 1]];
+    }
+  }
+  return results;
 }
